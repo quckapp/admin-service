@@ -1,6 +1,6 @@
-package com.quikapp.admin.domain.repository;
+package com.quckapp.admin.domain.repository;
 
-import com.quikapp.admin.domain.entity.WorkspaceSettings;
+import com.quckapp.admin.domain.entity.WorkspaceSettings;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

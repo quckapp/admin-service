@@ -1,8 +1,8 @@
-package com.quikapp.admin.controller;
+package com.quckapp.admin.controller;
 
-import com.quikapp.admin.domain.entity.MaintenanceWindow;
-import com.quikapp.admin.dto.AdminDtos.*;
-import com.quikapp.admin.service.*;
+import com.quckapp.admin.domain.entity.MaintenanceWindow;
+import com.quckapp.admin.dto.AdminDtos.*;
+import com.quckapp.admin.service.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

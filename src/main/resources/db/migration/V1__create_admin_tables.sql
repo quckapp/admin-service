@@ -63,7 +63,7 @@ CREATE TABLE maintenance_windows (
 
 -- Insert default system settings
 INSERT INTO system_settings (id, category, setting_key, setting_value, description, encrypted, editable) VALUES
-(UUID_TO_BIN(UUID()), 'general', 'app.name', 'QuikApp', 'Application name', FALSE, TRUE),
+(UUID_TO_BIN(UUID()), 'general', 'app.name', 'QuckApp', 'Application name', FALSE, TRUE),
 (UUID_TO_BIN(UUID()), 'general', 'app.version', '1.0.0', 'Application version', FALSE, FALSE),
 (UUID_TO_BIN(UUID()), 'general', 'app.environment', 'development', 'Current environment', FALSE, TRUE),
 (UUID_TO_BIN(UUID()), 'security', 'security.session.timeout', '3600', 'Session timeout in seconds', FALSE, TRUE),

@@ -1,12 +1,12 @@
-package com.quikapp.admin.service;
+package com.quckapp.admin.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.quikapp.admin.domain.entity.FeatureFlag;
-import com.quikapp.admin.domain.repository.FeatureFlagRepository;
-import com.quikapp.admin.dto.AdminDtos.*;
-import com.quikapp.admin.exception.DuplicateResourceException;
-import com.quikapp.admin.exception.ResourceNotFoundException;
+import com.quckapp.admin.domain.entity.FeatureFlag;
+import com.quckapp.admin.domain.repository.FeatureFlagRepository;
+import com.quckapp.admin.dto.AdminDtos.*;
+import com.quckapp.admin.exception.DuplicateResourceException;
+import com.quckapp.admin.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;

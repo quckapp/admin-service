@@ -1,10 +1,10 @@
-package com.quikapp.admin.service;
+package com.quckapp.admin.service;
 
-import com.quikapp.admin.domain.entity.SystemSettings;
-import com.quikapp.admin.domain.repository.SystemSettingsRepository;
-import com.quikapp.admin.dto.AdminDtos.*;
-import com.quikapp.admin.exception.DuplicateResourceException;
-import com.quikapp.admin.exception.ResourceNotFoundException;
+import com.quckapp.admin.domain.entity.SystemSettings;
+import com.quckapp.admin.domain.repository.SystemSettingsRepository;
+import com.quckapp.admin.dto.AdminDtos.*;
+import com.quckapp.admin.exception.DuplicateResourceException;
+import com.quckapp.admin.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;

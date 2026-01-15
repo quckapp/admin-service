@@ -1,6 +1,6 @@
-package com.quikapp.admin.service;
+package com.quckapp.admin.service;
 
-import com.quikapp.admin.dto.AdminDtos.*;
+import com.quckapp.admin.dto.AdminDtos.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

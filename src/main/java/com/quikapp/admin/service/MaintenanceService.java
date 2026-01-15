@@ -1,11 +1,11 @@
-package com.quikapp.admin.service;
+package com.quckapp.admin.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.quikapp.admin.domain.entity.MaintenanceWindow;
-import com.quikapp.admin.domain.repository.MaintenanceWindowRepository;
-import com.quikapp.admin.dto.AdminDtos.*;
-import com.quikapp.admin.exception.ResourceNotFoundException;
+import com.quckapp.admin.domain.entity.MaintenanceWindow;
+import com.quckapp.admin.domain.repository.MaintenanceWindowRepository;
+import com.quckapp.admin.dto.AdminDtos.*;
+import com.quckapp.admin.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

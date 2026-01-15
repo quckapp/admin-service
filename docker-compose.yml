@@ -5,14 +5,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: quikapp-admin-service
+    container_name: quckapp-admin-service
     ports:
       - "8085:8085"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
-      - MYSQL_DATABASE=quikapp_admin
+      - MYSQL_DATABASE=quckapp_admin
       - MYSQL_USERNAME=root
       - MYSQL_PASSWORD=password
       - REDIS_HOST=redis
@@ -23,17 +23,17 @@ services:
       redis:
         condition: service_started
     networks:
-      - quikapp-network
+      - quckapp-network
     restart: unless-stopped
 
   mysql:
     image: mysql:8.0
-    container_name: quikapp-admin-mysql
+    container_name: quckapp-admin-mysql
     ports:
       - "3310:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=password
-      - MYSQL_DATABASE=quikapp_admin
+      - MYSQL_DATABASE=quckapp_admin
     volumes:
       - admin-mysql-data:/var/lib/mysql
     healthcheck:
@@ -42,22 +42,22 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - quikapp-network
+      - quckapp-network
 
   redis:
     image: redis:7-alpine
-    container_name: quikapp-admin-redis
+    container_name: quckapp-admin-redis
     ports:
       - "6382:6379"
     volumes:
       - admin-redis-data:/data
     networks:
-      - quikapp-network
+      - quckapp-network
 
 volumes:
   admin-mysql-data:
   admin-redis-data:
 
 networks:
-  quikapp-network:
+  quckapp-network:
     driver: bridge

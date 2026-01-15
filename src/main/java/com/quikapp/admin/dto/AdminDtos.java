@@ -1,6 +1,6 @@
-package com.quikapp.admin.dto;
+package com.quckapp.admin.dto;
 
-import com.quikapp.admin.domain.entity.MaintenanceWindow;
+import com.quckapp.admin.domain.entity.MaintenanceWindow;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
