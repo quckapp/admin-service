@@ -1,0 +1,52 @@
+# =============================================================================
+# DEV Environment - Docker Compose
+# =============================================================================
+# Infrastructure for development environment
+# Usage: docker-compose -f docker/docker-compose-dev.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  admin-mysql-dev:
+    image: mysql:8.0
+    container_name: admin-mysql-dev
+    ports:
+      - "3311:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-dev_secret}
+      MYSQL_DATABASE: quckapp_admin
+    volumes:
+      - admin_mysql_dev_data:/var/lib/mysql
+    networks:
+      - admin-dev-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  admin-redis-dev:
+    image: redis:7-alpine
+    container_name: admin-redis-dev
+    ports:
+      - "6382:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_dev_secret}
+    volumes:
+      - admin_redis_dev_data:/data
+    networks:
+      - admin-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_dev_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  admin_mysql_dev_data:
+  admin_redis_dev_data:
+
+networks:
+  admin-dev-network:
+    driver: bridge

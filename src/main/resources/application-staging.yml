@@ -1,0 +1,54 @@
+# =============================================================================
+# STAGING Environment Configuration
+# =============================================================================
+# Use this profile for staging environment
+# Run with: -Dspring.profiles.active=staging
+# =============================================================================
+
+server:
+  port: 8085
+
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:quckapp_admin}?useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+services:
+  auth-service:
+    url: ${AUTH_SERVICE_URL}
+  user-service:
+    url: ${USER_SERVICE_URL}
+  permission-service:
+    url: ${PERMISSION_SERVICE_URL}
+  audit-service:
+    url: ${AUDIT_SERVICE_URL}
+
+logging:
+  level:
+    root: INFO
+    com.quckapp.admin: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

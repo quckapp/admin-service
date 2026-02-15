@@ -1,0 +1,72 @@
+# =============================================================================
+# PRODUCTION Environment - Docker Compose
+# =============================================================================
+# Infrastructure for production environment
+# Usage: docker-compose -f docker/docker-compose-production.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  admin-mysql-production:
+    image: mysql:8.0
+    container_name: admin-mysql-production
+    ports:
+      - "3311:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: quckapp_admin
+    volumes:
+      - admin_mysql_production_data:/var/lib/mysql
+    networks:
+      - admin-production-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=1G --max-connections=500
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  admin-redis-production:
+    image: redis:7-alpine
+    container_name: admin-redis-production
+    ports:
+      - "6382:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD} --maxmemory 1gb --maxmemory-policy allkeys-lru
+    volumes:
+      - admin_redis_production_data:/data
+    networks:
+      - admin-production-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+volumes:
+  admin_mysql_production_data:
+  admin_redis_production_data:
+
+networks:
+  admin-production-network:
+    driver: bridge

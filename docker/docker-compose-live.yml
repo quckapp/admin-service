@@ -1,0 +1,68 @@
+# =============================================================================
+# LIVE Environment - Docker Compose
+# =============================================================================
+# Infrastructure for live environment
+# Usage: docker-compose -f docker/docker-compose-live.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  admin-mysql-live:
+    image: mysql:8.0
+    container_name: admin-mysql-live
+    ports:
+      - "3311:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: quckapp_admin
+    volumes:
+      - admin_mysql_live_data:/var/lib/mysql
+    networks:
+      - admin-live-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  admin-redis-live:
+    image: redis:7-alpine
+    container_name: admin-redis-live
+    ports:
+      - "6382:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD} --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - admin_redis_live_data:/data
+    networks:
+      - admin-live-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+volumes:
+  admin_mysql_live_data:
+  admin_redis_live_data:
+
+networks:
+  admin-live-network:
+    driver: bridge

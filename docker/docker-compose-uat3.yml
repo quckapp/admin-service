@@ -1,0 +1,52 @@
+# =============================================================================
+# UAT3 Environment - Docker Compose
+# =============================================================================
+# Infrastructure for UAT3 environment
+# Usage: docker-compose -f docker/docker-compose-uat3.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  admin-mysql-uat3:
+    image: mysql:8.0
+    container_name: admin-mysql-uat3
+    ports:
+      - "3311:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: quckapp_admin
+    volumes:
+      - admin_mysql_uat3_data:/var/lib/mysql
+    networks:
+      - admin-uat3-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  admin-redis-uat3:
+    image: redis:7-alpine
+    container_name: admin-redis-uat3
+    ports:
+      - "6382:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - admin_redis_uat3_data:/data
+    networks:
+      - admin-uat3-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  admin_mysql_uat3_data:
+  admin_redis_uat3_data:
+
+networks:
+  admin-uat3-network:
+    driver: bridge
