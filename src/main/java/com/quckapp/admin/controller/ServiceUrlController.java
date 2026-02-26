@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/admin/service-urls")
+@RequestMapping("/api/v1/admin/service-urls")
 @RequiredArgsConstructor
 @Tag(name = "Service URLs", description = "Service URL configuration management per environment")
 public class ServiceUrlController {
