@@ -53,12 +53,17 @@ public class VersionService {
                             + " in " + request.environment());
         });
 
+        // New versions must start as PLANNED — enforce state machine
+        if (request.status() != null && request.status() != VersionStatus.PLANNED) {
+            throw new IllegalArgumentException("New versions must start as PLANNED");
+        }
+
         VersionConfig config = VersionConfig.builder()
                 .environment(request.environment())
                 .serviceKey(request.serviceKey())
                 .apiVersion(request.apiVersion())
                 .releaseVersion(request.releaseVersion())
-                .status(request.status() != null ? request.status() : VersionStatus.PLANNED)
+                .status(VersionStatus.PLANNED)
                 .sunsetDate(request.sunsetDate())
                 .sunsetDurationDays(request.sunsetDurationDays())
                 .changelog(request.changelog())
@@ -76,7 +81,7 @@ public class VersionService {
         VersionConfig config = findVersion(environment, serviceKey, apiVersion);
 
         if (request.releaseVersion() != null) config.setReleaseVersion(request.releaseVersion());
-        if (request.status() != null) config.setStatus(request.status());
+        // Status changes must go through dedicated endpoints (markReady, activate, deprecate, disable)
         if (request.sunsetDate() != null) config.setSunsetDate(request.sunsetDate());
         if (request.sunsetDurationDays() != null) config.setSunsetDurationDays(request.sunsetDurationDays());
         if (request.changelog() != null) config.setChangelog(request.changelog());
@@ -128,22 +133,7 @@ public class VersionService {
             Optional<String> previousEnv = EnvironmentChain.previousOf(environment);
             if (previousEnv.isPresent()) {
                 String prevEnv = previousEnv.get();
-                boolean activeInPrevious;
-
-                if ("uat".equals(prevEnv)) {
-                    activeInPrevious = List.of("uat1", "uat2", "uat3").stream()
-                            .anyMatch(uat -> versionRepo
-                                    .findByEnvironmentAndServiceKeyAndApiVersion(uat, serviceKey, apiVersion)
-                                    .map(v -> v.getStatus() == VersionStatus.ACTIVE)
-                                    .orElse(false));
-                } else {
-                    activeInPrevious = versionRepo
-                            .findByEnvironmentAndServiceKeyAndApiVersion(prevEnv, serviceKey, apiVersion)
-                            .map(v -> v.getStatus() == VersionStatus.ACTIVE)
-                            .orElse(false);
-                }
-
-                if (!activeInPrevious) {
+                if (!isActiveInPreviousEnvironment(prevEnv, serviceKey, apiVersion)) {
                     throw new IllegalStateException(
                             "Promotion gate: " + serviceKey + " " + apiVersion
                                     + " must be ACTIVE in " + prevEnv + " before activating in " + environment
@@ -233,22 +223,7 @@ public class VersionService {
         }
 
         String prevEnv = previousEnv.get();
-        boolean activeInPrevious;
-
-        if ("uat".equals(prevEnv)) {
-            activeInPrevious = List.of("uat1", "uat2", "uat3").stream()
-                    .anyMatch(uat -> versionRepo
-                            .findByEnvironmentAndServiceKeyAndApiVersion(uat, serviceKey, apiVersion)
-                            .map(v -> v.getStatus() == VersionStatus.ACTIVE)
-                            .orElse(false));
-        } else {
-            activeInPrevious = versionRepo
-                    .findByEnvironmentAndServiceKeyAndApiVersion(prevEnv, serviceKey, apiVersion)
-                    .map(v -> v.getStatus() == VersionStatus.ACTIVE)
-                    .orElse(false);
-        }
-
-        if (activeInPrevious) {
+        if (isActiveInPreviousEnvironment(prevEnv, serviceKey, apiVersion)) {
             return new CanPromoteResponse(true, serviceKey, apiVersion, prevEnv, toEnvironment, null);
         } else {
             return new CanPromoteResponse(false, serviceKey, apiVersion, prevEnv, toEnvironment,
@@ -287,10 +262,10 @@ public class VersionService {
             if (config.getStatus() == VersionStatus.ACTIVE) {
                 throw new IllegalStateException("Version is already ACTIVE in " + toEnvironment);
             }
-            if (config.getStatus() != VersionStatus.READY) {
-                config.setStatus(VersionStatus.READY);
-                config.setUpdatedBy(updatedBy);
-                config = versionRepo.save(config);
+            if (config.getStatus() != VersionStatus.READY && config.getStatus() != VersionStatus.PLANNED) {
+                throw new IllegalStateException(
+                        "Cannot promote: version is " + config.getStatus() + " in " + toEnvironment
+                                + ". Only PLANNED or READY versions can be promoted.");
             }
         }
 
@@ -578,8 +553,24 @@ public class VersionService {
 
     // ===== Private Helpers =====
 
+    private static final List<String> UAT_CONCRETE_ENVS = List.of("uat", "uat1", "uat2", "uat3");
+
+    private boolean isActiveInPreviousEnvironment(String previousEnv, String serviceKey, String apiVersion) {
+        if ("uat".equals(previousEnv)) {
+            return UAT_CONCRETE_ENVS.stream()
+                    .anyMatch(uat -> versionRepo
+                            .findByEnvironmentAndServiceKeyAndApiVersion(uat, serviceKey, apiVersion)
+                            .map(v -> v.getStatus() == VersionStatus.ACTIVE)
+                            .orElse(false));
+        }
+        return versionRepo
+                .findByEnvironmentAndServiceKeyAndApiVersion(previousEnv, serviceKey, apiVersion)
+                .map(v -> v.getStatus() == VersionStatus.ACTIVE)
+                .orElse(false);
+    }
+
     private String findActiveUatEnvironment(String serviceKey, String apiVersion) {
-        for (String uat : List.of("uat1", "uat2", "uat3")) {
+        for (String uat : UAT_CONCRETE_ENVS) {
             Optional<VersionConfig> v = versionRepo.findByEnvironmentAndServiceKeyAndApiVersion(uat, serviceKey, apiVersion);
             if (v.isPresent() && v.get().getStatus() == VersionStatus.ACTIVE) {
                 return uat;
