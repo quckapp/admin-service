@@ -9,7 +9,7 @@ COPY .mvn .mvn
 COPY pom.xml .
 
 # Download dependencies (cached layer)
-RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw && ./mvnw dependency:go-offline -B
 
 # Copy source code
 COPY src src

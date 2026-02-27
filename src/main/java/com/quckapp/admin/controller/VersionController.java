@@ -118,46 +118,6 @@ public class VersionController {
                 versionService.disable(env, serviceKey, ver, DEFAULT_UPDATED_BY)));
     }
 
-    // ===== Promotion Gate Endpoints =====
-
-    @GetMapping("/can-promote")
-    @Operation(summary = "Check if a version can be promoted to target environment (CI/CD gate)")
-    public ResponseEntity<ApiResponse<CanPromoteResponse>> canPromote(
-            @RequestParam String serviceKey,
-            @RequestParam String apiVersion,
-            @RequestParam String toEnvironment) {
-        return ResponseEntity.ok(ApiResponse.success(
-                versionService.canPromote(serviceKey, apiVersion, toEnvironment)));
-    }
-
-    @PostMapping("/{env}/versions/{serviceKey}/{ver}/promote")
-    @Operation(summary = "Promote version from previous environment (creates + activates in target)")
-    public ResponseEntity<ApiResponse<PromotionResponse>> promote(
-            @PathVariable String env,
-            @PathVariable String serviceKey,
-            @PathVariable String ver) {
-        return ResponseEntity.ok(ApiResponse.success("Version promoted",
-                versionService.promote(env, serviceKey, ver, DEFAULT_UPDATED_BY)));
-    }
-
-    @PostMapping("/{env}/versions/emergency-activate")
-    @Operation(summary = "Emergency hotfix bypass — requires dual approval + JIRA ticket")
-    public ResponseEntity<ApiResponse<VersionConfigResponse>> emergencyActivate(
-            @PathVariable String env,
-            @Valid @RequestBody EmergencyActivateRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Emergency hotfix activated",
-                versionService.emergencyActivate(env, request, DEFAULT_UPDATED_BY)));
-    }
-
-    @GetMapping("/promotion-history/{serviceKey}/{ver}")
-    @Operation(summary = "Get promotion audit trail for a version")
-    public ResponseEntity<ApiResponse<List<PromotionHistoryResponse>>> getPromotionHistory(
-            @PathVariable String serviceKey,
-            @PathVariable String ver) {
-        return ResponseEntity.ok(ApiResponse.success(
-                versionService.getPromotionHistory(serviceKey, ver)));
-    }
-
     // ===== Bulk Operation Endpoints =====
 
     @PostMapping("/{env}/versions/bulk-plan")

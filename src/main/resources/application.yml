@@ -47,6 +47,10 @@ spring:
   cache:
     type: redis
 
+promotion:
+  service-name: admin-service
+  environment: ${ENVIRONMENT:local}
+
 services:
   auth-service:
     url: ${AUTH_SERVICE_URL:http://localhost:8081}

@@ -45,26 +45,6 @@ public class VersionDtos {
         @NotBlank String environment
     ) {}
 
-    public record PromoteRequest(
-        @NotBlank String serviceKey,
-        @NotBlank @Pattern(regexp = "^v\\d+(\\.\\d+)?$", message = "apiVersion must match pattern vN or vN.N") String apiVersion
-    ) {}
-
-    public record EmergencyActivateRequest(
-        @NotBlank String serviceKey,
-        @NotBlank @Pattern(regexp = "^v\\d+(\\.\\d+)?$", message = "apiVersion must match pattern vN or vN.N") String apiVersion,
-        @NotBlank String reason,
-        @NotBlank String approver1,
-        @NotBlank String approver2,
-        @NotBlank @Pattern(regexp = "^[A-Z]+-\\d+$", message = "jiraTicket must match pattern PROJ-123") String jiraTicket
-    ) {}
-
-    public record CanPromoteRequest(
-        @NotBlank String serviceKey,
-        @NotBlank String apiVersion,
-        @NotBlank String toEnvironment
-    ) {}
-
     public record GlobalConfigRequest(
         @NotBlank @Pattern(regexp = "^v\\d+(\\.\\d+)?$", message = "defaultApiVersion must match pattern vN or vN.N") String defaultApiVersion,
         @Min(1) Integer defaultSunsetDays
@@ -160,39 +140,4 @@ public class VersionDtos {
         int entryCount
     ) {}
 
-    public record PromotionResponse(
-        UUID promotionId,
-        String serviceKey,
-        String apiVersion,
-        String fromEnvironment,
-        String toEnvironment,
-        String promotionType,
-        String promotedBy,
-        VersionConfigResponse versionConfig
-    ) {}
-
-    public record CanPromoteResponse(
-        boolean allowed,
-        String serviceKey,
-        String apiVersion,
-        String fromEnvironment,
-        String toEnvironment,
-        String blockedReason
-    ) {}
-
-    public record PromotionHistoryResponse(
-        UUID id,
-        UUID versionConfigId,
-        String serviceKey,
-        String apiVersion,
-        String fromEnvironment,
-        String toEnvironment,
-        String promotionType,
-        String promotedBy,
-        String approver1,
-        String approver2,
-        String jiraTicket,
-        String reason,
-        java.time.LocalDateTime createdAt
-    ) {}
 }

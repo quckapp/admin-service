@@ -1,9 +1,7 @@
 package com.quckapp.admin.service;
 
-import com.quckapp.admin.domain.EnvironmentChain;
 import com.quckapp.admin.domain.entity.*;
 import com.quckapp.admin.domain.repository.GlobalVersionConfigRepository;
-import com.quckapp.admin.domain.repository.PromotionRecordRepository;
 import com.quckapp.admin.domain.repository.VersionConfigRepository;
 import com.quckapp.admin.domain.repository.VersionProfileRepository;
 import com.quckapp.admin.dto.VersionDtos.*;
@@ -26,7 +24,6 @@ public class VersionService {
     private final VersionConfigRepository versionRepo;
     private final GlobalVersionConfigRepository globalConfigRepo;
     private final VersionProfileRepository profileRepo;
-    private final PromotionRecordRepository promotionRepo;
 
     // ===== CRUD Operations =====
 
@@ -128,38 +125,11 @@ public class VersionService {
                     "Cannot activate: current status is " + config.getStatus() + ", expected READY");
         }
 
-        // === PROMOTION GATE: enforce environment chain ===
-        if (!EnvironmentChain.isUnrestricted(environment)) {
-            Optional<String> previousEnv = EnvironmentChain.previousOf(environment);
-            if (previousEnv.isPresent()) {
-                String prevEnv = previousEnv.get();
-                if (!isActiveInPreviousEnvironment(prevEnv, serviceKey, apiVersion)) {
-                    throw new IllegalStateException(
-                            "Promotion gate: " + serviceKey + " " + apiVersion
-                                    + " must be ACTIVE in " + prevEnv + " before activating in " + environment
-                                    + ". Use emergency-activate for hotfix bypass.");
-                }
-            }
-        }
-
         config.setStatus(VersionStatus.ACTIVE);
         config.setUpdatedBy(updatedBy);
         config = versionRepo.save(config);
 
-        // Record the promotion
-        PromotionRecord record = PromotionRecord.builder()
-                .versionConfigId(config.getId())
-                .serviceKey(serviceKey)
-                .apiVersion(apiVersion)
-                .fromEnvironment(EnvironmentChain.previousOf(environment).orElse("none"))
-                .toEnvironment(environment)
-                .promotionType(PromotionType.NORMAL)
-                .promotedBy(updatedBy)
-                .build();
-        promotionRepo.save(record);
-
-        log.info("Activated: {} {} in {} (promotion from {})",
-                serviceKey, apiVersion, environment, record.getFromEnvironment());
+        log.info("Activated: {} {} in {}", serviceKey, apiVersion, environment);
         return toResponse(config);
     }
 
@@ -210,131 +180,6 @@ public class VersionService {
         config = versionRepo.save(config);
         log.info("Disabled: {} {} in {}", serviceKey, apiVersion, environment);
         return toResponse(config);
-    }
-
-    // ===== Promotion Operations =====
-
-    @Transactional(readOnly = true)
-    public CanPromoteResponse canPromote(String serviceKey, String apiVersion, String toEnvironment) {
-        Optional<String> previousEnv = EnvironmentChain.previousOf(toEnvironment);
-
-        if (EnvironmentChain.isUnrestricted(toEnvironment) || previousEnv.isEmpty()) {
-            return new CanPromoteResponse(true, serviceKey, apiVersion, "none", toEnvironment, null);
-        }
-
-        String prevEnv = previousEnv.get();
-        if (isActiveInPreviousEnvironment(prevEnv, serviceKey, apiVersion)) {
-            return new CanPromoteResponse(true, serviceKey, apiVersion, prevEnv, toEnvironment, null);
-        } else {
-            return new CanPromoteResponse(false, serviceKey, apiVersion, prevEnv, toEnvironment,
-                    serviceKey + " " + apiVersion + " is not ACTIVE in " + prevEnv);
-        }
-    }
-
-    public PromotionResponse promote(String toEnvironment, String serviceKey, String apiVersion, String updatedBy) {
-        CanPromoteResponse check = canPromote(serviceKey, apiVersion, toEnvironment);
-        if (!check.allowed()) {
-            throw new IllegalStateException("Promotion blocked: " + check.blockedReason());
-        }
-
-        String fromEnvironment = EnvironmentChain.previousOf(toEnvironment).orElse("none");
-
-        Optional<VersionConfig> existing = versionRepo.findByEnvironmentAndServiceKeyAndApiVersion(
-                toEnvironment, serviceKey, apiVersion);
-
-        VersionConfig config;
-        if (existing.isEmpty()) {
-            VersionConfig source = findVersion("uat".equals(fromEnvironment)
-                    ? findActiveUatEnvironment(serviceKey, apiVersion) : fromEnvironment, serviceKey, apiVersion);
-
-            config = VersionConfig.builder()
-                    .environment(toEnvironment)
-                    .serviceKey(serviceKey)
-                    .apiVersion(apiVersion)
-                    .releaseVersion(source.getReleaseVersion())
-                    .status(VersionStatus.READY)
-                    .changelog(source.getChangelog())
-                    .updatedBy(updatedBy)
-                    .build();
-            config = versionRepo.save(config);
-        } else {
-            config = existing.get();
-            if (config.getStatus() == VersionStatus.ACTIVE) {
-                throw new IllegalStateException("Version is already ACTIVE in " + toEnvironment);
-            }
-            if (config.getStatus() != VersionStatus.READY && config.getStatus() != VersionStatus.PLANNED) {
-                throw new IllegalStateException(
-                        "Cannot promote: version is " + config.getStatus() + " in " + toEnvironment
-                                + ". Only PLANNED or READY versions can be promoted.");
-            }
-        }
-
-        config.setStatus(VersionStatus.ACTIVE);
-        config.setUpdatedBy(updatedBy);
-        config = versionRepo.save(config);
-
-        PromotionRecord record = PromotionRecord.builder()
-                .versionConfigId(config.getId())
-                .serviceKey(serviceKey)
-                .apiVersion(apiVersion)
-                .fromEnvironment(fromEnvironment)
-                .toEnvironment(toEnvironment)
-                .promotionType(PromotionType.NORMAL)
-                .promotedBy(updatedBy)
-                .build();
-        promotionRepo.save(record);
-
-        log.info("Promoted: {} {} from {} to {}", serviceKey, apiVersion, fromEnvironment, toEnvironment);
-        return new PromotionResponse(record.getId(), serviceKey, apiVersion,
-                fromEnvironment, toEnvironment, "NORMAL", updatedBy, toResponse(config));
-    }
-
-    public VersionConfigResponse emergencyActivate(String environment, EmergencyActivateRequest request, String promotedBy) {
-        if (request.approver1().equalsIgnoreCase(request.approver2())) {
-            throw new IllegalArgumentException("Emergency hotfix: approver1 and approver2 must be different people");
-        }
-        if (request.approver1().equalsIgnoreCase(promotedBy) || request.approver2().equalsIgnoreCase(promotedBy)) {
-            throw new IllegalArgumentException("Emergency hotfix: approvers must differ from promoter");
-        }
-
-        VersionConfig config = findVersion(environment, request.serviceKey(), request.apiVersion());
-
-        if (config.getStatus() != VersionStatus.READY) {
-            throw new IllegalStateException(
-                    "Cannot emergency-activate: current status is " + config.getStatus() + ", expected READY");
-        }
-
-        config.setStatus(VersionStatus.ACTIVE);
-        config.setUpdatedBy(promotedBy);
-        config = versionRepo.save(config);
-
-        PromotionRecord record = PromotionRecord.builder()
-                .versionConfigId(config.getId())
-                .serviceKey(request.serviceKey())
-                .apiVersion(request.apiVersion())
-                .fromEnvironment("EMERGENCY_BYPASS")
-                .toEnvironment(environment)
-                .promotionType(PromotionType.EMERGENCY_HOTFIX)
-                .promotedBy(promotedBy)
-                .approver1(request.approver1())
-                .approver2(request.approver2())
-                .jiraTicket(request.jiraTicket())
-                .reason(request.reason())
-                .build();
-        promotionRepo.save(record);
-
-        log.warn("EMERGENCY HOTFIX: {} {} activated in {} by {} (approvers: {}, {}, ticket: {})",
-                request.serviceKey(), request.apiVersion(), environment,
-                promotedBy, request.approver1(), request.approver2(), request.jiraTicket());
-        return toResponse(config);
-    }
-
-    @Transactional(readOnly = true)
-    public List<PromotionHistoryResponse> getPromotionHistory(String serviceKey, String apiVersion) {
-        return promotionRepo.findByServiceKeyAndApiVersionOrderByCreatedAtDesc(serviceKey, apiVersion)
-                .stream()
-                .map(this::toPromotionHistoryResponse)
-                .toList();
     }
 
     // ===== Bulk Operations =====
@@ -552,40 +397,6 @@ public class VersionService {
     }
 
     // ===== Private Helpers =====
-
-    private static final List<String> UAT_CONCRETE_ENVS = List.of("uat", "uat1", "uat2", "uat3");
-
-    private boolean isActiveInPreviousEnvironment(String previousEnv, String serviceKey, String apiVersion) {
-        if ("uat".equals(previousEnv)) {
-            return UAT_CONCRETE_ENVS.stream()
-                    .anyMatch(uat -> versionRepo
-                            .findByEnvironmentAndServiceKeyAndApiVersion(uat, serviceKey, apiVersion)
-                            .map(v -> v.getStatus() == VersionStatus.ACTIVE)
-                            .orElse(false));
-        }
-        return versionRepo
-                .findByEnvironmentAndServiceKeyAndApiVersion(previousEnv, serviceKey, apiVersion)
-                .map(v -> v.getStatus() == VersionStatus.ACTIVE)
-                .orElse(false);
-    }
-
-    private String findActiveUatEnvironment(String serviceKey, String apiVersion) {
-        for (String uat : UAT_CONCRETE_ENVS) {
-            Optional<VersionConfig> v = versionRepo.findByEnvironmentAndServiceKeyAndApiVersion(uat, serviceKey, apiVersion);
-            if (v.isPresent() && v.get().getStatus() == VersionStatus.ACTIVE) {
-                return uat;
-            }
-        }
-        throw new IllegalStateException("No active UAT version found for " + serviceKey + " " + apiVersion);
-    }
-
-    private PromotionHistoryResponse toPromotionHistoryResponse(PromotionRecord r) {
-        return new PromotionHistoryResponse(
-                r.getId(), r.getVersionConfigId(), r.getServiceKey(), r.getApiVersion(),
-                r.getFromEnvironment(), r.getToEnvironment(), r.getPromotionType().name(),
-                r.getPromotedBy(), r.getApprover1(), r.getApprover2(),
-                r.getJiraTicket(), r.getReason(), r.getCreatedAt());
-    }
 
     private VersionConfig findVersion(String environment, String serviceKey, String apiVersion) {
         return versionRepo.findByEnvironmentAndServiceKeyAndApiVersion(environment, serviceKey, apiVersion)
