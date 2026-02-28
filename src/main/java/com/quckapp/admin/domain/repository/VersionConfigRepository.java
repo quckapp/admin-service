@@ -17,4 +17,6 @@ public interface VersionConfigRepository extends JpaRepository<VersionConfig, UU
     List<VersionConfig> findByEnvironmentAndStatus(String environment, VersionStatus status);
     List<VersionConfig> findByEnvironmentAndApiVersion(String environment, String apiVersion);
     boolean existsByEnvironmentAndServiceKeyAndStatusAndApiVersionNot(String environment, String serviceKey, VersionStatus status, String apiVersion);
+    boolean existsByEnvironmentAndServiceKeyAndApiVersionAndStatus(String environment, String serviceKey, String apiVersion, VersionStatus status);
+    boolean existsByEnvironmentInAndServiceKeyAndApiVersionAndStatus(List<String> environments, String serviceKey, String apiVersion, VersionStatus status);
 }

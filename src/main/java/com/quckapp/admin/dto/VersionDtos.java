@@ -62,6 +62,17 @@ public class VersionDtos {
         String releaseVersion
     ) {}
 
+    public record PromoteRequest(
+        String reason
+    ) {}
+
+    public record EmergencyActivateRequest(
+        @NotBlank String reason,
+        @NotBlank String approver1,
+        @NotBlank String approver2,
+        @NotBlank String jiraTicket
+    ) {}
+
     // ===== Response DTOs =====
 
     public record VersionConfigResponse(
@@ -138,6 +149,25 @@ public class VersionDtos {
         String environment,
         String content,
         int entryCount
+    ) {}
+
+    public record CanPromoteResponse(
+        boolean allowed,
+        String environment,
+        String serviceKey,
+        String apiVersion,
+        String nextEnvironment,
+        String blockedReason
+    ) {}
+
+    public record PromotionResponse(
+        String fromEnvironment,
+        String toEnvironment,
+        String serviceKey,
+        String apiVersion,
+        String promotionType,
+        String promotedBy,
+        VersionConfigResponse versionConfig
     ) {}
 
 }

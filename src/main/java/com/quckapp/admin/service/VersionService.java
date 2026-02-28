@@ -5,6 +5,7 @@ import com.quckapp.admin.domain.repository.GlobalVersionConfigRepository;
 import com.quckapp.admin.domain.repository.VersionConfigRepository;
 import com.quckapp.admin.domain.repository.VersionProfileRepository;
 import com.quckapp.admin.dto.VersionDtos.*;
+import com.quckapp.promotion.EnvironmentChain;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -125,6 +126,8 @@ public class VersionService {
                     "Cannot activate: current status is " + config.getStatus() + ", expected READY");
         }
 
+        validateChainForActivation(environment, serviceKey, apiVersion);
+
         config.setStatus(VersionStatus.ACTIVE);
         config.setUpdatedBy(updatedBy);
         config = versionRepo.save(config);
@@ -180,6 +183,130 @@ public class VersionService {
         config = versionRepo.save(config);
         log.info("Disabled: {} {} in {}", serviceKey, apiVersion, environment);
         return toResponse(config);
+    }
+
+    // ===== Promotion Operations =====
+
+    @Transactional(readOnly = true)
+    public CanPromoteResponse canPromote(String environment, String serviceKey, String apiVersion) {
+        // Check version is ACTIVE in current environment
+        boolean activeInCurrent = versionRepo.existsByEnvironmentAndServiceKeyAndApiVersionAndStatus(
+                environment, serviceKey, apiVersion, VersionStatus.ACTIVE);
+        if (!activeInCurrent) {
+            return new CanPromoteResponse(false, environment, serviceKey, apiVersion, null,
+                    "Version is not ACTIVE in " + environment);
+        }
+
+        // Check next environment exists
+        String nextEnv = EnvironmentChain.nextOf(environment);
+        if (nextEnv == null) {
+            return new CanPromoteResponse(false, environment, serviceKey, apiVersion, null,
+                    environment + " is the last environment in the chain");
+        }
+
+        // Check version not already ACTIVE in next environment
+        boolean alreadyActiveInNext = versionRepo.existsByEnvironmentAndServiceKeyAndApiVersionAndStatus(
+                nextEnv, serviceKey, apiVersion, VersionStatus.ACTIVE);
+        if (alreadyActiveInNext) {
+            return new CanPromoteResponse(false, environment, serviceKey, apiVersion, nextEnv,
+                    "Version is already ACTIVE in " + nextEnv);
+        }
+
+        return new CanPromoteResponse(true, environment, serviceKey, apiVersion, nextEnv, null);
+    }
+
+    public PromotionResponse promote(String environment, String serviceKey, String apiVersion,
+                                      PromoteRequest request, String promotedBy) {
+        CanPromoteResponse check = canPromote(environment, serviceKey, apiVersion);
+        if (!check.allowed()) {
+            throw new IllegalStateException("Cannot promote: " + check.blockedReason());
+        }
+
+        String nextEnv = check.nextEnvironment();
+
+        // Create or activate version in next environment
+        Optional<VersionConfig> existing = versionRepo.findByEnvironmentAndServiceKeyAndApiVersion(
+                nextEnv, serviceKey, apiVersion);
+
+        VersionConfigResponse versionResponse;
+        if (existing.isPresent()) {
+            VersionConfig config = existing.get();
+            if (config.getStatus() == VersionStatus.READY) {
+                // Activate existing READY version (skip chain validation — promotion IS the chain)
+                config.setStatus(VersionStatus.ACTIVE);
+                config.setUpdatedBy(promotedBy);
+                config = versionRepo.save(config);
+                versionResponse = toResponse(config);
+            } else if (config.getStatus() == VersionStatus.PLANNED) {
+                // Mark ready then activate
+                config.setStatus(VersionStatus.ACTIVE);
+                config.setUpdatedBy(promotedBy);
+                config = versionRepo.save(config);
+                versionResponse = toResponse(config);
+            } else {
+                throw new IllegalStateException(
+                        "Version exists in " + nextEnv + " with status " + config.getStatus() + ", cannot promote");
+            }
+        } else {
+            // Create new version directly as ACTIVE in next environment
+            VersionConfig config = VersionConfig.builder()
+                    .environment(nextEnv)
+                    .serviceKey(serviceKey)
+                    .apiVersion(apiVersion)
+                    .status(VersionStatus.ACTIVE)
+                    .changelog(request != null ? request.reason() : null)
+                    .updatedBy(promotedBy)
+                    .build();
+            config = versionRepo.save(config);
+            versionResponse = toResponse(config);
+        }
+
+        log.info("Promoted {} {} from {} to {} by {}", serviceKey, apiVersion, environment, nextEnv, promotedBy);
+        return new PromotionResponse(environment, nextEnv, serviceKey, apiVersion, "PROMOTE", promotedBy, versionResponse);
+    }
+
+    public PromotionResponse emergencyActivate(String environment, String serviceKey, String apiVersion,
+                                                EmergencyActivateRequest request, String promotedBy) {
+        // Validate 3 distinct participants
+        Set<String> participants = Set.of(promotedBy, request.approver1(), request.approver2());
+        if (participants.size() < 3) {
+            throw new IllegalArgumentException(
+                    "Emergency activation requires 3 distinct participants (promoter, approver1, approver2)");
+        }
+
+        // Create or activate version directly, bypassing chain
+        Optional<VersionConfig> existing = versionRepo.findByEnvironmentAndServiceKeyAndApiVersion(
+                environment, serviceKey, apiVersion);
+
+        VersionConfigResponse versionResponse;
+        String changelog = "EMERGENCY: " + request.reason() + " [JIRA: " + request.jiraTicket()
+                + ", approvers: " + request.approver1() + ", " + request.approver2() + "]";
+
+        if (existing.isPresent()) {
+            VersionConfig config = existing.get();
+            config.setStatus(VersionStatus.ACTIVE);
+            config.setChangelog(changelog);
+            config.setUpdatedBy(promotedBy);
+            config = versionRepo.save(config);
+            versionResponse = toResponse(config);
+        } else {
+            VersionConfig config = VersionConfig.builder()
+                    .environment(environment)
+                    .serviceKey(serviceKey)
+                    .apiVersion(apiVersion)
+                    .status(VersionStatus.ACTIVE)
+                    .changelog(changelog)
+                    .updatedBy(promotedBy)
+                    .build();
+            config = versionRepo.save(config);
+            versionResponse = toResponse(config);
+        }
+
+        log.warn("EMERGENCY activation: {} {} in {} by {} (approvers: {}, {}) [{}]",
+                serviceKey, apiVersion, environment, promotedBy,
+                request.approver1(), request.approver2(), request.jiraTicket());
+        return new PromotionResponse(environment, environment, serviceKey, apiVersion,
+                "EMERGENCY", promotedBy, versionResponse);
     }
 
     // ===== Bulk Operations =====
@@ -397,6 +524,33 @@ public class VersionService {
     }
 
     // ===== Private Helpers =====
+
+    private void validateChainForActivation(String environment, String serviceKey, String apiVersion) {
+        if (EnvironmentChain.isUnrestricted(environment)) {
+            return;
+        }
+
+        String previousEnv = EnvironmentChain.previousOf(environment);
+        if (previousEnv == null) {
+            return;
+        }
+
+        // For environments whose previous is "uat", check all UAT variants
+        boolean activeInPrevious;
+        if ("uat".equals(previousEnv)) {
+            activeInPrevious = versionRepo.existsByEnvironmentInAndServiceKeyAndApiVersionAndStatus(
+                    EnvironmentChain.uatVariants(), serviceKey, apiVersion, VersionStatus.ACTIVE);
+        } else {
+            activeInPrevious = versionRepo.existsByEnvironmentAndServiceKeyAndApiVersionAndStatus(
+                    previousEnv, serviceKey, apiVersion, VersionStatus.ACTIVE);
+        }
+
+        if (!activeInPrevious) {
+            throw new IllegalStateException(
+                    "Cannot activate " + serviceKey + " " + apiVersion + " in " + environment
+                            + ": version must be ACTIVE in " + previousEnv + " first (environment promotion chain)");
+        }
+    }
 
     private VersionConfig findVersion(String environment, String serviceKey, String apiVersion) {
         return versionRepo.findByEnvironmentAndServiceKeyAndApiVersion(environment, serviceKey, apiVersion)

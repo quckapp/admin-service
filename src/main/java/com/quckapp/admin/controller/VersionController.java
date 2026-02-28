@@ -118,6 +118,39 @@ public class VersionController {
                 versionService.disable(env, serviceKey, ver, DEFAULT_UPDATED_BY)));
     }
 
+    // ===== Promotion Endpoints =====
+
+    @GetMapping("/{env}/versions/{serviceKey}/{ver}/can-promote")
+    @Operation(summary = "Check if a version can be promoted to the next environment")
+    public ResponseEntity<ApiResponse<CanPromoteResponse>> canPromote(
+            @PathVariable String env,
+            @PathVariable String serviceKey,
+            @PathVariable String ver) {
+        return ResponseEntity.ok(ApiResponse.success(versionService.canPromote(env, serviceKey, ver)));
+    }
+
+    @PostMapping("/{env}/versions/{serviceKey}/{ver}/promote")
+    @Operation(summary = "Promote version to next environment in the chain")
+    public ResponseEntity<ApiResponse<PromotionResponse>> promote(
+            @PathVariable String env,
+            @PathVariable String serviceKey,
+            @PathVariable String ver,
+            @Valid @RequestBody(required = false) PromoteRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Version promoted",
+                versionService.promote(env, serviceKey, ver, request, DEFAULT_UPDATED_BY)));
+    }
+
+    @PostMapping("/{env}/versions/{serviceKey}/{ver}/emergency-activate")
+    @Operation(summary = "Emergency activation bypassing promotion chain (requires dual approval)")
+    public ResponseEntity<ApiResponse<PromotionResponse>> emergencyActivate(
+            @PathVariable String env,
+            @PathVariable String serviceKey,
+            @PathVariable String ver,
+            @Valid @RequestBody EmergencyActivateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Emergency activation completed",
+                versionService.emergencyActivate(env, serviceKey, ver, request, DEFAULT_UPDATED_BY)));
+    }
+
     // ===== Bulk Operation Endpoints =====
 
     @PostMapping("/{env}/versions/bulk-plan")
